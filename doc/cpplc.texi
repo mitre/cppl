@@ -1,0 +1,965 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename cpplc.info
+@setchapternewpage off
+@include version.texi
+@settitle CPPLC Programmer's Guide
+@c %**end of header
+
+@copying
+This manual documents CPPLC version @value{VERSION}, a compiler for
+protocols specified using the Cryptographic Protocol Programming
+Language.
+
+Copyright @copyright{} 2005 The MITRE Corporation.
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.  The terms are contained in the
+file @file{COPYING} in the source distribution of the software, or
+at @uref{http://www.gnu.org/licenses/lgpl.txt}.
+@end quotation
+@end copying
+
+@dircategory Programming
+
+@direntry
+* cpplc: (cpplc).  A compiler for protocols specified using CPPL.
+@end direntry
+
+@c  This title page illustrates only one of the
+@c  two methods of forming a title page.
+
+@titlepage
+@title CPPLC Programmer's Guide
+@subtitle CPPLC Programmer's Guide for CPPLC Version @value{VERSION}
+@author Joshua D. Guttman, John D. Ramsdell,
+Jonathan C. Herzog, Jonathan K. Millen, and Brian T. Sniffen
+
+@c  The following two commands
+@c  start the copyright page.
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+
+This work was supported by the MITRE-Sponsored Research Program.
+@end titlepage
+
+@iftex
+@contents
+@end iftex
+
+@ifnottex
+
+@ifinfo
+@node Top, Introduction, (dir), (dir)
+@top  CPPLC Programmer's Guide
+@insertcopying
+@end ifinfo
+
+@ifnotinfo
+@node Top, Introduction, (dir), (dir)
+@insertcopying
+@top  Contents
+@end ifnotinfo
+
+@end ifnottex
+
+@menu
+* Introduction::        Programming cryptographic protocols
+* Protocols::           The protocol programming language
+* Routines::            Initial theories and programs
+* Invoking::            Command-line options supported by @command{cpplc}
+* Copying::             Terms for copying the software
+* Index::               A concept index
+@end menu
+
+@ifnottex
+The software described in this manual is the product of John
+D. Ramsdell, Joshua D. Guttman, Jonathan C. Herzog, Jonathan
+K. Millen, and Brian T. Sniffen, all of The MITRE Corporation.  The
+work was supported by the MITRE-Sponsored Research Program.
+@end ifnottex
+
+@node    Introduction, Protocols, Top, Top
+@chapter Introduction
+
+The Cryptographic Protocol Programming Language (CPPL) facilitates the
+design and implementation of hand-crafted protocols for electronic
+commerce and cross-organization distributed applications.  These
+protocols must be faithful to the trust relations among the
+participants, meaning their requirements for authentication and access
+control.  CPPL allows a designer to express protocols at the Dolev-Yao
+level of abstraction.  CPPL and its semantics are motivated by the
+strand space theory, so that the designer can verify that a new
+protocol meets its confidentiality and authentication goals.
+
+@cindex OCaml
+This guide describes how to create running programs from CPPL
+specifications.  The current CPPL implementation is based on
+@uref{http://www.ocaml.org, OCaml}, an object-orient dialect of ML
+developed and distributed by INRIA, France's national research
+institute for computer science.  The compiler translates a CPPL
+specification to OCaml source, and for each program, a programmer
+writes a small OCaml source file that initializes the program as
+appropriate for one or more participants in the protocol, and then
+invokes the code generated for each participant.
+
+CPPL is intended to provide minimal expressiveness compatible with
+protocol design.  First, a protocol run must respond to choices made
+by its peer, as encoded in different forms of message that could be
+received from the peer.  Second, the principal on behalf of whom the
+protocol is executing must be able to dictate choices reflecting its
+trust management policy.  Finally, CPPL provides a mechanism to call
+subprotocols, so that design may be modularized.  The interface to a
+subprotocol shows what data values must be supplied to it and what
+values will be returned back on successful termination.  The interface
+also shows what properties the callee assumes about the input
+parameters, and what properties it will guarantee to its caller about
+values resulting from successful termination.  These---branching on
+messages received, consulting a trust management theory, and
+subprotocols---are the three main forms of expressiveness offered by
+CPPL.
+
+We also need some functionality from libraries.  The libraries include
+a cryptographic library---used to format messages, to encrypt and
+decrypt, to sign and verify, and to hash---and a communications
+library.  The latter connects to other principals on the network and
+manages network level channels to them.  These channels need not
+achieve any authentication or confidentiality in themselves.  The
+third library is a trust management engine.  The trust management
+engine allows us to integrate the protocol behavior with access
+control in a trust management logic, giving an open-ended way to
+control when to abort a run, and to control the choice between one
+subprotocol and another.
+
+@cindex trust management engine
+The formulas used by the trust management engine are mostly determined
+by the engine.  The exception is CPPL determines the set of constants
+used to form the terms of the language.  The trust management engine
+maintains a theory, a set of formulas in the trust management logic.
+Each formula is implicitly universal, as required for use as rules.
+The theory is used to derive conclusions, and may be augmented with
+new formulas as a protocol interaction proceeds.
+
+The CPPL compiler described here uses a deductive database system
+based on Datalog as its trust management system.  The Datalog is a
+declarative logic language in which each formula is a function-free
+Horn clause, and every variable in the head of a clause must appear in
+the body of the clause.  The implementation uses a tabled logic
+programming algorithm that ensures that all queries terminate.
+
+Our treatment of trust management is tightly connected.  The constants
+used in terms in trust management formulas are the atoms used to form
+messages. The atomic terms of messages are texts, nonces, socket
+addresses, public keys, and symmetric keys.  Messages are built from
+atoms using the operations of concatenation, encryption, signing, and
+tagging.
+
+@cindex rely
+@cindex guarantee
+We associate a formula with each message transmission or reception.
+The formula associated with a message transmission is a
+@dfn{guarantee} that the sender must assert in order to transmit the
+message.  The formula associated with a message reception is an
+assumption that the recipient is allowed to @dfn{rely} on.  It says
+that some other principal has previously guaranteed something.  A
+protocol is @dfn{sound} if in every execution, whenever one principal
+@var{P} relies on @var{P'} having said a formula @var{F}, then there
+was previously an event at which @var{P'} transmitted a message, and
+the guarantee formula on that transmission implies @var{F}.
+
+@cindex subprotocols
+The same idea shapes our treatment of subprotocols.  A local message,
+sent by the calling protocol, starts a subprotocol run.  Hence, the
+caller makes a guarantee that the callee can rely on.  When the
+subprotocol run terminates normally, it sends a message back to its
+caller; the callee now makes a guarantee that the caller can rely on
+in the remainder of its run.
+
+@cindex environment
+The language is organized around a specific view of protocol behavior.
+In this view, as a principal executes a single local run of a
+protocol, it builds up an @dfn{environment} that binds identifiers to
+values encountered.  Some of these values are given by the caller as
+values of parameters when the protocol is initiated; some are chosen
+randomly; some are received as ingredients in incoming messages; and
+some are chosen to satisfy trust management requirements.  (Every
+constant in the trust management logic is a value that can be bound to
+an identifier.)  These bindings are commitments, never to be updated;
+once a value has been bound to an identifier, future occurrences of
+that identifier (especially when expected in an incoming message) must
+match the value or else execution of this run aborts.  The environment
+at the end of a run records everything learnt during execution.  A
+selection of this information is returned to the caller.
+
+This document provides no information on the construction of protocol
+soundness proofs.  Instead, it describes the process used to build
+programs that implement protocols specified with CPPL.
+
+@node    Protocols, Routines, Introduction, Top
+@chapter Specifying Protocols
+
+We now describe CPPL.  After presenting the trust management system,
+we describe message transmission and reception, later adding
+mechanisms for declaring the interface to a protocol and for
+expressing subprotocol call and return.
+
+@menu
+* Trust Management::            Formula syntax and semantics
+* Transmission and Reception::  Communicating with others
+* Subprotocols::                Communicating with self
+* Syntax Reference::            A BNF specification of the syntax
+@end menu
+
+@node    Trust Management, Transmission and Reception, Protocols, Protocols
+@section Trust Management
+
+@cindex Datalog
+@cindex deductive databases
+@cindex tabled logic programming
+This CPPL compiler uses a deductive database system based on Datalog
+as its trust management system.  Datalog is a declarative logic
+language in which each formula is a function-free Horn clause, and
+every variable in the head of a clause must appear in the body of the
+clause.  The implementation uses a tabled logic programming algorithm
+that ensures that all queries terminate.
+
+@cindex variable
+@cindex identifier
+The syntax used to specify a Datalog formula closely follows the
+conventions used by ISO Prolog.  A formula consists of an atomic
+formula called its @dfn{head}, followed by zero or more atomic
+formulas, called its @dfn{body}.  The head is separated by a @code{:-}
+token, which is omitted when the clause has no body.  An atomic
+formula is also called a literal.
+
+@display
+@var{FORMULA} ::= @var{LITERAL} @var{BODY}
+@end display
+
+@noindent
+where @var{BODY} is either empty or starts with @code{:-} and is
+followed by one or more literals separated by commas.  The clause
+states that the head of clause can be derived if each of the elements of
+its body can be derived.  Several examples of formulas follow.
+
+@example
+parent(a, b)
+ancestor(A, B) :-
+    parent(A, B)
+ancestor(A, B) :-
+    parent(A, C),
+    ancestor(C, B)
+@end example
+
+Note that each clause is not terminated with a period.  Keywords in
+CPPL programs identify the end of a clause.
+
+@cindex literal
+A literal is a predicate symbol followed by an optional
+parenthesized comma separated list of terms.  There is also a binary
+infix syntax for unifying two terms.
+
+@display
+@var{LITERAL} ::=
+        @var{ID}
+        |  @var{ID} ( @var{TERMS} )
+        |  @var{TERM} = @var{TERM}
+@end display
+
+In CPPL programs, there are two kinds of terms.  A @var{VARIABLE} is
+an uppercase Latin letter followed by zero or more Latin letters,
+digits, or underscore.  There is a syntactic category called an
+identifier.  An identifier @var{ID} is a lowercase Latin letter
+followed by zero or more Latin letters, digits, or underscore.  Unlike
+ISO Prolog, identifiers name CPPL runtime values, and are used to
+communicate values to the trust management system and receive new
+bindings from it (@pxref{Transmission and Reception} for details).
+
+@cindex constant
+@cindex string
+When specifying clauses for the initial theory, each clause must be
+terminated with a period, and there are two additional kinds of terms,
+a @var{STRING} and a @var{CONSTANT}.  A @var{STRING} is a sequence of
+characters surrounded by double quotes.  A @var{CONSTANT} is a digit
+followed by zero or more Latin letters, digits, or underscore.  These
+term specify constants of type text.
+
+@cindex query
+Datalog deductions occur in response to a request to prove a
+literal, called a @dfn{query}.  Recall that for each Datalog clause,
+every variable in the head of a clause must appear in the body of the
+clause.  As a result, every derivation of a query will contain only
+constants, and never variables.  In contrast, Prolog is an example of
+system in which derivations of queries may contain variables.
+
+@node    Transmission and Reception, Subprotocols, Trust Management, Protocols
+@section Transmission and Reception
+
+The main syntactic category of CPPL is the statement.
+
+@display
+@var{STATEMENT} ::=
+        return
+        |  let @var{DECL} = @var{EXPR} in @var{STATEMENT}
+        |  send @var{SEND}
+        |  send cases @var{SEND_BRANCHES} end
+        |  receive @var{ID} @var{RECEIVE}
+        |  receive @var{ID} cases @var{RECEIVE_BRANCHES} end
+        |  match @var{ID} @var{RECEIVE}
+        |  match @var{ID} cases @var{RECEIVE_BRANCHES} end
+        |  @dots{} (More to come)
+
+@var{SEND}    ::= @var{OPT_GUAR} --> @var{ID} @var{MESSAGE} @var{STATEMENT}
+
+@var{RECEIVE} ::= @var{MESSAGE} --> @var{OPT_RELY} @var{STATEMENT}
+
+@var{DECL} ::= @var{ID} | @var{ID} : @var{TYPE}
+@end display
+
+@noindent
+where @var{SEND_BRANCHES} is zero or more @var{SEND}s separated by
+vertical bars and @var{RECEIVE_BRANCHES} is zero or more @var{RECEIVE}s
+separated by vertical bars.
+
+A statement may return immediately, it may let-bind an identifier to
+the value of an expression in a statement, bind identifiers as a
+result of matching a message, or it may offer a choice of message
+transmissions (send) or message receptions (receive).
+
+Each message transmission branch is guarded by a sequence of trust
+management queries.  Each query is separated by the @code{and}
+keyword, and the token @code{_} denotes an empty sequence of queries.
+The branch may be selected only if the trust management engine
+succeeds in establishing (guaranteeing) an instance of each query.
+The environment for the remainder of the run is augmented with the
+instantiated identifiers.  If the trust management engine fails on every
+branch's guarantee, then this run aborts.  A message transmission may
+also fail if the appropriate keys are not available for signing or
+encryption.
+
+The Datalog queries that make up a guarantee are proved in the order
+given.  Given that queries can have side-effects, a programmer is
+allowed to depend on the left-to-right query evaluation order when
+specifying protocols.
+
+Each message reception is guarded by a message pattern @var{MESSAGE}.
+That branch may be selected only if the parser recognizes an instance
+of this pattern in the message received from the communication layer,
+on the channel @var{ID}.  Identifiers not previously bound are
+instantiated to the values found by the parser.  The trust management
+engine can rely on a set of formulas associated with the selected pattern.
+The formulas are added to the local theory as a temporary premise, so it
+can be used in proving guarantee formulas in the remainder of this
+run.  If the message received from the communication layer does not
+match the pattern in any branch of a message reception statement, then
+this run aborts.
+
+A match statement is similar to a receive statement except the
+identifier names a message instead of a channel.
+
+Expressions are either identifiers, constants, new nonces or keys, or
+forms interacting with the communications library.  New nonces and
+keys are randomly generated by the cryptographic library.
+
+@display
+@var{EXPR} ::= @var{ID}
+        |  new @var{KEY_TYPE}
+        |  new nonce
+        |  connect (@var{ID})
+        |  accept
+        |  receive (@var{ID})
+@end display
+
+A @code{connect} expression requests a channel from the communications
+layer intended for bidirectional communication with participant named
+by the argument; however, the channel provides neither authentication
+of origin nor confidentiality.  The @code{accept} expression is used
+to act as a server; it yields a channel when a remote participant
+opens a connection.  A @code{receive} expression reads one message
+from a channel.
+
+@display
+@var{MESSAGE} ::=
+        @var{DECL}
+        |  @var{MESSAGE} , @var{MESSAGE}
+        |  @var{TAG} , @var{MESSAGE}
+        |  @{ @var{MESSAGE} @} @var{DECL}
+        |  @{| @var{MESSAGE} |@} @var{DECL}
+        |  [ @var{MESSAGE} ] @var{DECL}
+        |  [| @var{MESSAGE} |] @var{DECL}
+        |  <@var{ID} = @var{MESSAGE}>
+        |  hash (@var{MESSAGE})
+        |  ( @var{MESSAGE} )
+@end display
+
+Message patterns interact with the cryptographic library instead of
+the communication layer.  They allow identifiers and constants to be
+specified as atomic message patterns; concatenation of message
+patterns and tagging is indicated by comma; and public key encryption
+and signature are indicated by @{@var{MESSAGE}@}@var{DECL} and
+[@var{MESSAGE}]@var{DECL} respectively.  Encryption and signature
+using a symmetric key is indicated by @{|@var{MESSAGE}|@}@var{DECL}
+and [|@var{MESSAGE}|]@var{DECL}.  Hashing and submessage patterns are
+also represented.  An example encryption pattern follows.
+
+@display
+send _ --> chan @{n, k, b@} ka
+@end display
+
+A submessage pattern binds a message to an identifier of type
+@code{msg} while allowing its parts to be bound to other
+identifiers.  Consider the following example in which @code{k} is
+bound to a public key with a private part not known to the current
+participant.
+
+@display
+receive ch <cert = [n:nonce, p:name] k> --> _
+@end display
+
+The reception of this message succeeds only if it contains a valid
+signature.  It also binds the message to the @code{cert} identifier.
+This identifier can be used in a send message pattern to transmit the
+signed message without signing it itself.  In this case, an attempt to
+reconstruct the signed message by this participant would fail due to the
+inaccessibility of the matching private key.
+
+An identifier of type @code{msg} can also be used to treat a message
+with structure as if it had none.  Suppose principal @var{P} sends a
+message of the form:
+
+@display
+send _ --> chan @{n, b@} k
+@end display
+
+@noindent
+to principal @var{P'}, but @var{P'} does not have the private key
+associated with @code{k}, as its job is to simply forward the message
+to principal @var{Q}, the one in possession of the key.  Principal
+@var{P'} can do so with:
+
+@display
+receive ch_p b:msg --> _
+send _ --> ch_q b
+@end display
+
+Consider CPPL identifiers in expressions, message patterns, and trust
+management formulas.  When an identifier occurs in an expression, a
+send message pattern, or a rely formula, the CPPL value that is bound
+to the identifier in the environment is used when evaluating the
+construct.  In these contexts, it is an error for a value to be
+unbound.  In contrast, an identifier that occurs in a receive message
+pattern or a query may be unbound.  As a side-effect of receiving a
+message or proving a query, the environment will be extended so as to
+include a binding for every identifier within those constructs.
+
+@node Subprotocols, Syntax Reference, Transmission and Reception, Protocols
+@section Subprotocols
+
+Since one wants to construct protocols by using others as
+subprotocols, each protocol has an interface, and can use other
+protocols according to their stated interfaces.  The interface allows
+values to be passed to the subprotocol by its caller.  The interface
+also specifies which parameters are to be returned by the subprotocol
+if it completes successfully.  The subprotocol returns no values to
+its caller if it aborts.
+
+@display
+@var{PROCEDURE} ::=
+        @var{ID} (@var{DECLS}) (@var{DECLS})
+        assumes @var{OPT_RELY}
+        proves @var{OPT_GUAR}
+        @var{STATEMENT} end
+
+@var{STATEMENT} ::=
+        |  @dots{} (Previously defined)
+        |  call @var{CALL}
+        |  call cases CALL_BRANCHES end
+
+@var{CALL}    ::= @var{OPT_GUAR} --> _ @var{STATEMENT}
+        |  @var{OPT_GUAR} --> @var{PATH} @var{ID} (@var{DECLS}) (@var{DECLS}) @var{OPT_RELY} @var{STATEMENT}
+@end display
+
+@noindent
+where @var{CALL_BRANCHES} is zero or more @var{CALL}s separated by
+vertical bars, and the assumes and proves phrases are optional in a
+procedure header.
+
+The interface also includes two formulas.  The assumption is a formula
+serving as a precondition.  Its identifiers should be only the
+input parameters to the subprotocol, and it expresses a relationship
+among their values that the subprotocol designer assumes to hold.  The
+caller must assure that this relationship holds before calling the
+subprotocol.  The proves formula concerns the values returned by the
+subprotocol.  It expresses a relationship that the subprotocol will
+guarantee in all cases of successful termination.  It must contain
+free only the input and output parameters of the protocol.
+
+@display
+get_public_key (b:name, c, kc) (kb:pubkey)
+    assumes owns_key(c, kc)
+    proves  owns_key(b, kb)
+@end display
+
+The syntax for a subprotocol call site mirrors this structure.  It
+contains two branches, each guarded by a guarantee formula.  The
+branch will not be taken unless the trust management engine ensures an
+instance of the guarantee.  The call site names a subprotocol to which
+it passes actual parameters.  Values bound to identifiers for use in the
+remainder of the caller's execution.  The call site specifies a
+@emph{rely} formula the summarizing the effect of the subprotocol,
+which the trust management engine can use in the remainder of the
+caller's execution.
+
+@display
+call owns_key(c, kc:pubkey)
+  --> get_public_key (b, c, kc) (kb)
+  owns_key(b, kb)
+@end display
+
+@cindex null call
+Some call statements do not invoke a subprotocol, but instead are
+present only to prove a guarantee.  They are called null calls, and
+simply omit the specification of the subprotocol invocation.
+
+@display
+call compute(a, b:text) and do(b, c:text) --> _
+@end display
+
+@node    Syntax Reference,  , Subprotocols, Protocols
+@section Syntax Reference
+
+A CPPL program is a sequence of procedures.
+The syntax of a procedure is:
+
+@cindex procedure syntax
+@display
+@var{PROCEDURE} ::=
+        @var{ID} (@var{DECLS}) (@var{DECLS})
+        assumes @var{OPT_RELY}
+        proves @var{OPT_GUAR}
+        @var{STATEMENT} end
+@end display
+
+@noindent
+where @var{DECLS} is zero or more declarations separated by commas, and the
+assume and prove phrases are optional.
+
+@display
+@var{DECL} ::= @var{ID} | @var{ID} : @var{TYPE}
+@end display
+
+The @var{ID} : @var{TYPE} phrase asserts an @var{ID} must contain
+values of the given type.  The types are: @code{name}, @code{text},
+@code{nonce}, @code{channel}, @code{msg}, @code{pubkey}, and
+@code{symkey}.
+
+@cindex statement syntax
+@display
+@var{STATEMENT} ::=
+        return
+        |  let @var{DECL} = @var{EXPR} in @var{STATEMENT}
+        |  send @var{SEND}
+        |  send cases @var{SEND_BRANCHES} end
+        |  receive @var{ID} @var{RECEIVE}
+        |  receive @var{ID} cases @var{RECEIVE_BRANCHES} end
+        |  match @var{ID} @var{RECEIVE}
+        |  match @var{ID} cases @var{RECEIVE_BRANCHES} end
+        |  call @var{CALL}
+        |  call cases @var{CALL_BRANCHES} end
+@end display
+
+@noindent
+where @var{SEND_BRANCHES} is zero or more @var{SEND}s separated by
+vertical bars, @var{RECEIVE_BRANCHES} is zero or more @var{RECEIVE}s
+separated by vertical bars, and @var{CALL_BRANCHES} is zero or more
+@var{CALL}s separated by vertical bars.  A match statement is similar
+to a receive statement except the identifier names a message instead
+of a channel.
+
+@cindex expression syntax
+@display
+@var{EXPR} ::= @var{ID}
+        |  new @var{KEY_TYPE}
+        |  new nonce
+        |  connect (@var{ID})
+        |  accept
+        |  receive (@var{ID})
+@end display
+
+@cindex send syntax
+@display
+@var{SEND}    ::= @var{OPT_GUAR} --> @var{ID} @var{MESSAGE} @var{STATEMENT}
+@end display
+
+@cindex receive syntax
+@display
+@var{RECEIVE} ::= @var{MESSAGE} --> @var{OPT_RELY} @var{STATEMENT}
+@end display
+
+@cindex call syntax
+@display
+@var{CALL}    ::= @var{OPT_GUAR} --> _ @var{STATEMENT}
+        |  @var{OPT_GUAR} --> @var{PATH} @var{ID} (@var{DECLS}) (@var{DECLS}) @var{OPT_RELY} @var{STATEMENT}
+@end display
+
+@display
+@var{PATH}    ::= | @var{PATH} @var{VARIABLE} .
+@end display
+
+@cindex message syntax
+@display
+@var{MESSAGE} ::=
+        @var{DECL}
+        |  @var{MESSAGE} , @var{MESSAGE}
+        |  @var{TAG} , @var{MESSAGE}
+        |  @{ @var{MESSAGE} @} @var{DECL}
+        |  @{| @var{MESSAGE} |@} @var{DECL}
+        |  [ @var{MESSAGE} ] @var{DECL}
+        |  [| @var{MESSAGE} |] @var{DECL}
+        |  <@var{ID} = @var{MESSAGE}>
+        |  hash (@var{MESSAGE})
+        |  ( @var{MESSAGE} )
+@end display
+
+When the comma operator is used to concatenate and tag messages, it is
+right associative.
+
+@display
+@var{OPT_GUAR} ::= _ | @var{QUERIES}
+@end display
+
+@display
+@var{OPT_RELY} ::= _ | @var{FORMULAS}
+@end display
+
+@cindex guarantee syntax
+@display
+QUERIES ::= @var{QUERY} | @var{QUERIES} and @var{QUERY}
+@end display
+
+@cindex rely syntax
+@display
+FORMULAS ::= @var{FORMULA} | @var{FORMULAS} and @var{FORMULA}
+@end display
+
+With Datalog, a trust management formula uses Prolog-like syntax,
+however, there are no function symbols, and every variable that occurs
+in the head of a clause must also occur in its body.
+
+@display
+@var{QUERY} ::= @var{LITERAL}
+@end display
+
+@display
+@var{FORMULA} ::= @var{LITERAL} @var{BODY}
+@end display
+
+@noindent
+where @var{BODY} is either empty or starts with @code{:-} and is
+followed by one or more literals separated by commas.
+
+@display
+@var{LITERAL} ::=
+        @var{ID}
+        |  @var{ID} ( @var{TERMS} )
+        |  @var{TERM} = @var{TERM}
+@end display
+
+@display
+@var{TERM} ::= @var{DECL} | @var{VARIABLE}
+@end display
+
+@noindent
+where @var{TERMS} is one or more @var{TERM}s separated by commas.
+
+@cindex identifier
+@cindex variable
+An identifier @var{ID} is a lowercase Latin letter followed by zero or
+more Latin letters, digits, or underscore.  A @var{STRING} is a
+sequence of characters surrounded by double quotes.  A @var{TAG}
+is an uppercase Latin letter or a digit followed by zero or more Latin
+letters, digits, or underscore.  A @var{VARIABLE} is an uppercase
+Latin letter followed by zero or more Latin letters, digits, or
+underscore, and is treated as a logical variable.  A predicate symbol
+is in the same syntactic category as is an identifier.
+
+@cindex comments
+A one-line comment starts with @code{%}, and a multi-line comment starts
+with @code{(*} and ends with @code{*)}.
+
+@node    Routines, Invoking, Protocols, Top
+@chapter Specifying Routines
+
+@cindex participant
+When designing a protocol, one analyzes the interactions among
+principals that result from the exchange of messages.  In the CPPL
+framework, each principal has an initial theory and a CPPL procedure
+that defines its behavior.  A principal, an initial theory, and the
+CPPL procedure used as an entry point define a protocol
+@dfn{participant}.
+
+@cindex routine
+A program generated using the CPPL framework selects a CPPL procedure
+to be used to specify behavior after it establishes an initial theory
+and specifies its principals.  As such, the program can be used to
+define the behavior of multiple principals.  The inputs to the program
+can be used to influence the principal, initial theory, and the CPPL
+procedure invoked.  A protocol @dfn{routine} is a function that generates
+a protocol participant.  Each program generated using the CPPL
+framework is a protocol routine.
+
+A protocol routine is constructed from at least two source files---a CPPL
+source file used to specify CPPL procedures, and an OCaml source file
+that defines the main routine invoked when the program is started.
+The CPPL library provides functions used by a program while defining a
+protocol routine.  As such, the source file defining the main routine
+often starts with:
+
+@example
+open Cppl
+@end example
+
+@noindent
+followed by code that defines the name, establishes an initial
+theory, and then selects an entry point.
+
+@menu
+* Name::                   Selecting a name
+* Initial Theory::         Establishing an initial theory
+* Entry Point::            Selecting an entry point
+@end menu
+
+@node    Name, Initial Theory, Routines, Routines
+@section Selecting a Name
+
+Each running CPPL program has a socket address on which it can accept
+connections.  This socket address is the name associated with the
+running program.  By default, each name is assigned the port
+27752---CPPLC on a telephone keypad.  A CPPL program can change its
+port with the function:
+
+@cindex set_self
+@cindex port
+@example
+val set_self : int -> unit
+@end example
+
+Use a negative number to specify the default port.
+
+@node    Initial Theory, Entry Point, Name, Routines
+@section Establishing an Initial Theory
+
+There are three ways to add formulas to the initial theory.  Formulas
+that contain no constants other than ones that can be written as a quoted
+string of text can be written using Datalog syntax, and placed in a
+separate file.  In this syntax, each clause in the file is terminated
+by a period.  An example file of axioms follows.
+
+@verbatiminclude ../src/sample/ac_nsl/init_axioms.ml
+
+@cindex axioms
+If the above axioms were in a file named @file{axioms.ml}, and the
+CPPL protocol is in a file named @file{protocol.ml}, these axioms are
+inserted into the initial theory with the code:
+
+@example
+let theory = Protocol._t in
+List.iter (assume theory) Axioms.axioms
+@end example
+
+Assertions in which non-text constants occur are constructed using
+library functions.  A CPPL value accessible to the trust management
+system is built using the constructors defined by the value variant
+type.
+
+@cindex value
+@example
+type value =
+  | Pub of pubkey
+  | Sym of symkey
+  | Nonce of nonce
+  | Text of text
+  | Name of name
+@end example
+
+A Datalog term is constructed from a value using @code{mkval}, a
+literal is constructed from a string and a list of terms using
+@code{mkliteral}, and a clause is constructed from a head literal, and
+a list of literals.
+
+Functions that implement a simple key store are available in the Cppl
+module. Keys read from a key entry can be inserted into the initial
+theory with code such as:
+
+@example
+try
+  while true do
+    let p, k = load_key_store_entry input in
+    let pubkey =
+      mkliteral "owns_key"
+        [mkval (Text p); mkval (Pub k)] in
+    assume theory (mkclause pubkey [])
+  done
+with End_of_file -> close_in input
+@end example
+
+The key can be retrieved with a guarantee of the form:
+
+@example
+owns_key(p:text, k:pubkey)
+@end example
+
+@cindex primitive
+Some applications require predicates implemented by OCaml functions.
+The predicates are called Datalog primitives.  If @code{prim} is an
+OCaml function that defines a primitive that takes as input three
+arguments, the main routine registers it under the name ``prim''
+with:
+
+@example
+add_primitive "prim" 3 prim
+@end example
+
+A primitive is a function that when given the number of expected
+output values and a list of input values, returns either None to
+signal failure, or a list of values of the specified length.
+
+Here is an example of a primitive that expects three text arguments,
+and concatenates them to produce one output value.
+
+@example
+let prim n l =
+  match n, l with
+  | 1, [Text a; Text b; Text c] ->
+      Some [Text (a ^ b ^ c)]
+  | _ -> None
+@end example
+
+The following primitive makes its name available to a CPPL
+procedure via the trust management system.
+
+@cindex self
+@example
+let self n l =
+  match n, l with
+  | 1, [] ->
+      Some [Name (get_self ())]
+  | _ -> None
+
+add_primitive "self" 0 self
+@end example
+
+@node    Entry Point,  , Initial Theory, Routines
+@section Selecting an Entry Point
+
+@cindex entry point
+The CPPL compiler translates a CPPL specification into an OCaml source
+file that defines an OCaml function for each CPPL procedure in the
+input.  The function maps an input tuple to an output tuple.
+If the CPPL specification defines a procedure with this header:
+
+@example
+init(b:name, c:name, d:text) (n:nonce, q:text, v:text)
+    proves  val(n, d, q, v)
+@end example
+
+@noindent
+the type of the function will be:
+
+@example
+val init : name * name * text -> nonce * text * text
+@end example
+
+@noindent
+The function may abort by raising the following exception.
+
+@example
+exception Cppl_abort of string
+@end example
+
+@node    Invoking, Copying, Routines, Top
+@chapter Invoking CPPLC
+
+The @command{cpplc} program translates protocols specified in the
+Cryptographic Protocol Programming Language and Datalog clauses into
+OCaml source.  Executable versions of each routine in a protocol can be
+generated by compiling each source, and a main routine written in
+OCaml.  The object files must be linked with following OCaml
+libraries: @file{unix.cma}, @file{nums.cma}, @file{cryptokit.cma}, and
+@file{cppl.cma}, and also the C cryptokit library.
+
+By default, @command{cpplc} output goes to the standard output, but
+the @code{-o} option can be used to send the output to a file.  The
+other command-line options follow.
+
+@table @code
+@item -c
+Generate code from CPPL input (default)
+
+@item -n
+Generate signature (mli file) from CPPL input
+
+@item -d
+Generate code from CPPL input that also produces protocol debugging output
+
+@item -a
+Generate code from Datalog input to be inserted into an initial theory
+
+@item -i
+Indent CPPL input
+
+@item -t
+Indent CPPL input in which all inferred types have been made explicit
+
+@item -s
+Generate Scheme S-Expressions from CPPL input mirroring its abstract syntax
+
+@item -v
+Print version information and exit
+
+@end table
+
+Markus Mottl's OCamlMakefile can ease the process of generating the
+various routines in a protocol specified in CPPL.
+Place the protocol in a file that starts with:
+
+@example
+(*pp cpplc *)
+@end example
+
+@noindent
+and give the file a name with a ``.ml'' extension.  In a Makefile
+that uses OCamlMakefile, treat it as an ordinary OCaml source file.
+The OCamlMakefile will take care of invoking the @command{cpplc}.
+
+@noindent
+For Datalog axioms, start the file with:
+
+@example
+(*pp cpplc -a *)
+@end example
+
+@node Copying, Index, Invoking, Top
+@appendix Copying the Software
+
+The software described by this manual is covered by the terms of the
+GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any
+later version.  The terms are contained in the file @file{COPYING}
+in the source distribution of the software, or at
+@uref{http://www.gnu.org/licenses/lgpl.txt}.
+
+@iftex
+@vskip 0pt plus 1filll
+@end iftex
+
+@node    Index,  , Copying, Top
+@unnumbered Index
+
+@printindex cp
+
+@bye

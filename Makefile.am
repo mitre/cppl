@@ -1,0 +1,3 @@
+export bindir INSTALL_PROGRAM INSTALL_DATA
+
+SUBDIRS = src doc

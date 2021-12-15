@@ -1,0 +1,5 @@
+version="@VERSION@"
+description="Runtime support for CPPL programs"
+requires="unix cryptokit"
+archive(byte)="cppl.cma"
+archive(native)="cppl.cmxa"

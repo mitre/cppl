@@ -1,0 +1,319 @@
+2015-10-01  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.7.
+
+	* src/comp/printer.ml: Replaced deprecated use of & with &&.
+
+	* configure,.../Makefile.in: Updated autoreconf generated files.
+
+2015-09-29  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/crypto.ml (rand): Random.pseudo_rng is now used to
+	generate keys because Random.secure_rng uses up system entropy and
+	blocks.
+
+2015-09-18  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/datalog.ml (rand): Random.pseudo_rng is now used to
+	generate keys because Random.secure_rng uses up system entropy and
+	blocks.
+
+2013-02-04  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/datalog.ml (subgoal): Added a hash table to the subgoal
+	table making lookups of facts fast.  This replaces an
+	implementation that did a linear search of the facts.
+
+2006-11-24  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.6.
+
+	* src/lib/cpplFunctor.ml: Upped the receive timeout to 30 seconds
+	so that the sample programs work reliably.
+
+2006-11-22  John D. Ramsdell  <ramsdell@goo.mitre.org>
+
+	* src/sample/ac_nsl/ac_nsl.sh: Add test so that keys stores are
+	reused when they already exist, instead of being generated.
+
+2006-05-30  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* Various Makefiles: Made use of the PACKS variable in
+	OCamlMakefile clients.  Allowed the removal of definitions for
+	OCAMLC and OCAMLOPT.
+
+2006-05-24  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.5.
+
+	* configure.ac Makefile.am: Removed INCDIRS and LIBS, as all
+	libraries and interfaces are found using ocamlfind.
+
+2006-05-22  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/Makefile: Changed so that libraries are installed using
+	ocamlfind.  This Makefile assumes cryptokit has been installed so
+	it too is available via ocamlfind.
+
+2006-04-24  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.4.
+
+2006-04-21  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/scheme.ml: Added the generation of Scheme S-Expressions
+	from CPPL input that mirrors its abstract syntax.  Using this
+	option, tools that consume a CPPL program need not worry about the
+	details of parsing the concrete syntax.
+
+2006-04-13  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.3.
+
+	* src/lib/cpplFunctor.ml: Included various modules directly into
+	the functor so as to simplify the code and allow modification.
+	Reorganized the transport layer so that it only deals with
+	S-Expressions, and not with messages.  Removed input_message and
+	output_message from the library interface and from the library.
+
+2006-01-26  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1.2.
+
+2006-01-25  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* Compiler: Dropped keyword blob.
+
+	* Library: Dropped operations that supported the blob type and
+	renamed submsg operations to msg operations.
+
+2006-01-24  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* Compiler: Added the receive expression and the match
+	statement.  A receive expression reads a message from a channel.
+	A match statement is similar to a receive statement except the
+	identifier names a message instead of a channel.
+
+	* Compiler: The keyword submsg was renamed to msg.
+
+	* Compiler: Dropped support for Prolog output.
+
+2006-01-13  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1_1.
+
+	* src/comp/ast.ml (key_type): Reduced the number of key types to
+	Pubkey and Symkey, so as to reflect the static distinctions made
+	by the runtime libraries.  Programs must use pubkey to declare a
+	public key instead of either enckey or verkey.
+
+2006-01-11  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/datalog.ml (apply_prim): Fixed a bug in the unification
+	algorithm used after a primitive returns its output.  The previous
+	code claimed results unified when it should not have.
+
+	* src/comp/cpplc.ml (run): Removed the comments so that the
+	function handles a Failure exception once again.  The source with
+	the try-catch expression commented out was never meant to be
+	saved.
+
+2005-06-14  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-1_0.
+
+2005-06-13  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/printer.ml (put_try): Added begin-end combination so
+	that generated tries match the correct with.
+
+2005-06-10  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/prolog.ml (print_quoted_string): Changed double quotes
+	to single quotes so that the output conforms to the ISO Prolog
+	Standard.
+
+2005-06-01  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_9.
+
+	* Changed tags so they are unary constructors instead of being
+	attached to concatenations, encryptions, and signatures.
+
+	* Eliminated text constants from CPPL programs to bring it in line
+	with theoretical requirements.
+
+	* src/comp/infer.ml (subst_statement): Extended a return statement's
+	substitution environment so that the guarantee's environment
+	contains all identifiers it should.
+
+2005-05-27  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_8.
+
+	* Added tags to encryptions and signatures.
+
+2005-05-26  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/printer.ml (put_send, put_recv): Added send and
+	receive message patterns to the debug output.	
+
+2005-05-25  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/prolog.ml (gen_vars): Added a compile time switch so
+	that the Prolog output can either contain or not contain Prolog
+	variables.
+
+	* src/sample/ac_nsl/protocol.ml: Made principal name the first
+	argument of each procedure invoked by a main routine.
+
+	* src/comp/parser.mly (msg): Added parenthesized message
+	production so that the first item of a concatenation can be
+	another concatenation.
+
+2005-05-24  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_7.
+
+2005-05-19  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/scanner.mll: Changed the parser so that logical
+	variables can no longer start with a digit.
+
+	* Added support for tagged concatenation in messages.
+
+2005-05-18  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_6.
+
+	* src/comp/printer.ml (put_recv_subpattern): Added parenthesis to
+	expression generated for a hash pattern.
+
+	* src/lib/message.mli (load_key_store_entry): Changed the type of
+	identifiers used to name keys from a socket address to a text
+	string.
+
+2005-05-17  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* Changed notation to use the term "literal" to describe an atomic
+	formula. 
+
+2005-05-11  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* doc/cpplc.texi (Introduction): Corrected description of the
+	relation of the trust management engine to the rest of the
+	system. 
+
+2005-05-06  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_5.
+
+2005-05-05  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/name.ml{,i}: Names are just socket addresses.
+
+	* src/comp/ast.ml (expression): Changed the channel expression to
+	a connect expression so that it no longer overlaps with the type
+	channel. 
+
+2005-05-03  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/infer.ml (compat_key): Since public keys can be both of
+	type verkey and enckey, make enckey an alias for the type verkey.
+
+2005-04-29  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_4.
+
+	* src/comp/printer.ml (put_recv_subpattern): Receive message
+	pattern generator uses a todo list based algorithm so as to catch
+	all identifier binding dependencies. 
+
+	* src/comp/parser.mly (procedure): Dropped support for old
+	syntax. 
+
+2005-04-28  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/message.ml (sym_sign, sym_verify): Added support for
+	digital signatures using symmetric keys.
+
+2005-04-25  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/printer.ml, src/lib/cpplFunctor.ml: Changed the
+	interface between the trust management system so as to reduce the
+	amount of details of the current trust management system exposed
+	in compiled code.  The result of a successful proof is a value
+	list that corresponds to variables in the query.
+
+2005-04-20  Brian T. Sniffen  <bsniffen@localhost.localdomain>
+
+	* cpplc.ml, printer.ml, printer.mli:
+	Add a -n flag to generate interface files.
+	This and the -i flag should probably be switched, for
+	better matching with ocamlc.
+
+2005-04-19  Brian T. Sniffen  <bsniffen@localhost.localdomain>
+
+	* Makefile.am, configure.ac:
+	Add a --with-cryptokit and a --with-extra-libs flag to the automake
+	files.
+
+	Debian systems should be able to
+	./configure --with-cryptokit="+numerix +cryptokit" \
+		    --with-extra-libs="nums numerix cryptokit"
+
+	Systems cobbled together by hand should be able to just
+	./configure
+
+	* src/util/Makefile, src/sample/auth/Makefile, src/sample/ac_nsl/Makefile:
+	Remove LIBCRYPTO and INCCRYPTO support, the hack to support
+	anything other than Goo, from samples.
+
+2005-04-11  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_3.
+
+	* src/sample/ac_nsl/*: Added example from the CPPL paper.
+
+	* src/comp/ast.ml (statement): Added null call syntax.
+
+2005-04-07  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/Makefile (LIBINSTALL_FILES): Added module interfaces
+	needed to extend the Crypto module.
+
+2005-04-06  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/lib/cpplFunctor.ml: Added the ability to change the crypto
+	module used to build a runtime library.
+
+2005-04-05  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* src/comp/message.ml (make_strategy): Implemented at strategy
+	generator that explores all possibilities.
+
+2005-04-04  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* doc/cpplc.1.in: Added a manual page.
+
+2005-03-31  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_2.
+
+	* src/comp/pretty.ml: Rewrote pretty printer so it chooses better
+	line breaks and indentation.
+
+	* src/comp/message.mli: Changed message reception compilation
+	strategy interface so it supports ordering the parsing of a
+	sequence concatenations.
+
+	* src/comp/printer.ml (tail_call_allowed): Recognize tail calls
+	and generate appropriate code.
+
+	* src/comp/printer.ml: All generated procedures are mutually
+	recursive.  The meaning of a protocol no longer depends on the
+	order in which procedures are declared in a file.
+
+2005-03-30  John D. Ramsdell  <ramsdell@mitre.org>
+
+	* configure.ac: Tagged as cppl-0_1.
